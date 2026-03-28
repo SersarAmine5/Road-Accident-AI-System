@@ -1,12 +1,13 @@
-import pdb
-
-from PIL import Image
 from ultralytics import YOLO
-
-image = Image.open("./image.jpg")
 
 model = YOLO("yolov8n.pt")
 
+# TODO: faire en sorte que les parameters d'entrainement soit modifiables.
+# python src/train.py epochs=20
+
+# pre-processing images (resize image, normliser contrast, etc.)
+# entrainement
+# evaluation
 results = model.train(
     data="./data/data.yaml",
     epochs=10,
