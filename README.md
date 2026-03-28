@@ -42,3 +42,7 @@ TODO: instructions on how to run the streamlit project and use the pre-trained m
 ```bash
 # TODO: to be completed.
 ```
+
+```bash
+python -m streamlit run src/app.py
+```

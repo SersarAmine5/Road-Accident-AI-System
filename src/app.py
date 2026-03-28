@@ -8,7 +8,7 @@ import streamlit as st
 from PIL import Image, ImageDraw
 
 # Import model-related functions
-from model import load_model, detect_on_image, extract_frames, YOLO_AVAILABLE
+from model import YOLO_AVAILABLE, detect_on_image, extract_frames, load_model
 
 # Display warning if YOLO is not available
 if not YOLO_AVAILABLE:
@@ -315,7 +315,6 @@ def render_detection_section():
         unsafe_allow_html=True,
     )
 
-    # ── MODEL LOADING VIA SIDEBAR ─────────────────────────────────────────────
     with st.sidebar:
         st.markdown("---")
         st.markdown("### 🤖 Modèle YOLOv8")

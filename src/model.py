@@ -125,48 +125,34 @@ def draw_static_detection(image_np: np.ndarray) -> np.ndarray:
 
 
 def detect_on_image(image_np: np.ndarray, model) -> tuple[np.ndarray, list, float]:
-    """
-    Run accident detection on a single image frame.
-
-    If a real YOLO model is provided, it runs inference and uses
-    results[0].plot() to overlay bounding boxes. Otherwise, it falls back
-    to the static rectangle demo mode.
-
-    Args:
-        image_np (np.ndarray): Input image as a NumPy array (RGB format).
-        model: A loaded YOLO model instance, or None for fallback mode.
-
-    Returns:
-        tuple:
-            - result_image (np.ndarray): Annotated image as NumPy array (RGB).
-            - detections (list): List of dicts with keys 'confidence' and 'class'.
-            - processing_time_ms (float): Inference time in milliseconds.
-    """
     start_time = time.time()
     detections = []
     result_image = image_np.copy()
 
     try:
         if model is not None and YOLO_AVAILABLE:
-            # ── Real YOLO inference path ──────────────────────────────────
-            results = model(image_np, verbose=False)
+            results = model.predict(
+                image_np, verbose=False
+            )  # use .predict() not __call__
 
-            # results[0].plot() returns a BGR numpy array with boxes drawn
+            # results[0].plot() returns BGR — convert to RGB
             plotted = results[0].plot()
             result_image = cv2.cvtColor(plotted, cv2.COLOR_BGR2RGB)
 
-            # Extract detection metadata
             boxes = results[0].boxes
-            if boxes is not None:
+            if boxes is not None and len(boxes) > 0:
+                # model.names is a dict like {0: 'accident', 1: 'vehicle'}
+                names = (
+                    model.names
+                    if isinstance(model.names, dict)
+                    else {i: n for i, n in enumerate(model.names)}
+                )
                 for box in boxes:
                     conf = float(box.conf[0])
                     cls = int(box.cls[0])
-                    label = model.names.get(cls, f"Classe {cls}")
+                    label = names.get(cls, f"Classe {cls}")
                     detections.append({"confidence": conf, "class": label})
-
         else:
-            # ── Static fallback demo path ─────────────────────────────────
-            # Convert to BGR for OpenCV drawing, then back to RGB
             bgr = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
             bgr_drawn = draw_static_detection(bgr)
             result_image = cv2.cvtColor(bgr_drawn, cv2.COLOR_BGR2RGB)
@@ -176,6 +162,7 @@ def detect_on_image(image_np: np.ndarray, model) -> tuple[np.ndarray, list, floa
         st.error("❌ Mémoire insuffisante pour traiter cette image.")
     except Exception as e:
         st.error(f"❌ Erreur lors de la détection : {e}")
+        st.exception(e)  # ← shows full traceback in the UI during debugging
 
     processing_time_ms = (time.time() - start_time) * 1000
     return result_image, detections, processing_time_ms
