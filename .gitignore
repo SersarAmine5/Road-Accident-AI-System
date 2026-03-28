@@ -209,6 +209,6 @@ datasets
 data.coco
 data
 
-*.pt
+./*.pt
 
 .DS_Store
