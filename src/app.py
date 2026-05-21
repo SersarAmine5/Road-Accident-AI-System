@@ -1,20 +1,16 @@
 import os
 import tempfile
 import time
-
+import pandas as pd
 import cv2
 import numpy as np
 import streamlit as st
 from PIL import Image, ImageDraw
 
-# Import model-related functions
 from model import YOLO_AVAILABLE, detect_on_image, extract_frames, load_model
 
-# Display warning if YOLO is not available
 if not YOLO_AVAILABLE:
-    st.warning(
-        "⚠️ La bibliothèque `ultralytics` n'est pas installée. Mode démonstration activé."
-    )
+    st.warning("⚠️ La bibliothèque `ultralytics` n'est pas installée. Mode démonstration activé.")
 
 st.set_page_config(
     page_title="Road Accident AI System",
@@ -25,212 +21,332 @@ st.set_page_config(
 
 
 def inject_custom_css():
-    """
-    Inject custom CSS styles into the Streamlit app for a dark, modern theme.
-    Defines accent colors, card styles, metric containers, and button overrides.
-    """
     st.markdown(
         """
     <style>
-        /* ── Global background ── */
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
+
+        /* ── GLOBAL ── */
         .stApp {
-            background-color: #0E1117;
-            color: #FAFAFA;
+            background-color: #070B14;
+            color: #CBD5E1;
+            font-family: 'Inter', sans-serif;
         }
 
-        /* ── Sidebar styling ── */
+        /* ── SIDEBAR ── */
         [data-testid="stSidebar"] {
-            background-color: #161B22;
-            border-right: 1px solid #30363D;
-        }
-        [data-testid="stSidebar"] .stMarkdown h1,
-        [data-testid="stSidebar"] .stMarkdown h2,
-        [data-testid="stSidebar"] .stMarkdown h3 {
-            color: #FF4B4B;
+            background: linear-gradient(180deg, #0D1423 0%, #070B14 100%);
+            border-right: 1px solid rgba(0, 255, 255, 0.08);
         }
 
-        /* ── Main header ── */
-        .main-header {
-            background: linear-gradient(135deg, #1A1F2E 0%, #161B22 50%, #1A1F2E 100%);
-            border: 1px solid #FF4B4B33;
-            border-radius: 16px;
-            padding: 28px 36px;
+        /* ── MAIN HEADER ── */
+        .cyber-header {
+            position: relative;
+            background: linear-gradient(135deg, #0D1423 0%, #0A1628 50%, #0D1423 100%);
+            border: 1px solid rgba(0, 212, 255, 0.2);
+            border-radius: 4px;
+            padding: 36px 48px;
             margin-bottom: 28px;
             text-align: center;
+            overflow: hidden;
         }
-        .main-header h1 {
-            color: #FF4B4B;
-            font-size: 2.6rem;
-            font-weight: 800;
+        .cyber-header::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #00D4FF, #0066FF, #00D4FF, transparent);
+        }
+        .cyber-header::after {
+            content: '';
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(0,212,255,0.3), transparent);
+        }
+        .cyber-header h1 {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 2.8rem;
+            font-weight: 700;
+            color: #FFFFFF;
+            letter-spacing: 3px;
+            text-transform: uppercase;
             margin: 0 0 8px 0;
-            text-shadow: 0 0 20px #FF4B4B55;
+            text-shadow: 0 0 30px rgba(0, 212, 255, 0.4);
         }
-        .main-header p {
-            color: #8B949E;
-            font-size: 1.1rem;
+        .cyber-header .accent {
+            color: #00D4FF;
+        }
+        .cyber-header p {
+            font-family: 'Share Tech Mono', monospace;
+            color: rgba(0, 212, 255, 0.6);
+            font-size: 0.85rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
             margin: 0;
         }
 
-        /* ── Section title ── */
+        /* ── SECTION TITLE ── */
         .section-title {
-            color: #FF4B4B;
-            font-size: 1.6rem;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1.5rem;
             font-weight: 700;
-            border-left: 4px solid #FF4B4B;
-            padding-left: 14px;
-            margin: 20px 0 16px 0;
-        }
-
-        /* ── Metric cards ── */
-        .metric-card {
-            background-color: #161B22;
-            border: 1px solid #30363D;
-            border-radius: 12px;
-            padding: 20px 16px;
-            text-align: center;
-            transition: border-color 0.3s ease;
-        }
-        .metric-card:hover {
-            border-color: #FF4B4B88;
-        }
-        .metric-card .metric-value {
-            font-size: 2rem;
-            font-weight: 800;
-            color: #FF4B4B;
-        }
-        .metric-card .metric-label {
-            font-size: 0.85rem;
-            color: #8B949E;
-            margin-top: 6px;
+            color: #00D4FF;
+            letter-spacing: 2px;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            border-left: 3px solid #00D4FF;
+            padding-left: 14px;
+            margin: 24px 0 20px 0;
         }
 
-        /* ── Safe metric (green) ── */
-        .metric-card.safe .metric-value {
-            color: #00C853;
-        }
-
-        /* ── Frame thumbnail card ── */
-        .frame-card {
-            background-color: #161B22;
-            border: 1px solid #30363D;
-            border-radius: 10px;
-            padding: 10px;
-            margin-bottom: 12px;
+        /* ── NAV LOGO ── */
+        .nav-logo {
             text-align: center;
+            padding: 20px 0 28px 0;
+            border-bottom: 1px solid rgba(0,212,255,0.1);
+            margin-bottom: 20px;
         }
-        .frame-card .frame-label {
-            font-size: 0.8rem;
-            color: #8B949E;
-            margin-top: 6px;
+        .nav-logo .logo-icon {
+            font-size: 2.4rem;
+            display: block;
+            margin-bottom: 8px;
+            filter: drop-shadow(0 0 8px rgba(0,212,255,0.5));
         }
-        .frame-card .frame-accident {
-            color: #FF4B4B;
-            font-weight: 600;
+        .nav-logo .logo-title {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #FFFFFF;
+            letter-spacing: 2px;
+            text-transform: uppercase;
         }
-        .frame-card .frame-safe {
-            color: #00C853;
-            font-weight: 600;
+        .nav-logo .logo-sub {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.65rem;
+            color: rgba(0,212,255,0.5);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-top: 2px;
         }
 
-        /* ── Info banner ── */
-        .info-banner {
-            background: linear-gradient(90deg, #1A2744 0%, #161B22 100%);
-            border: 1px solid #3D5A99;
-            border-radius: 10px;
-            padding: 16px 20px;
-            color: #90CAF9;
+        /* ── NAV LABEL ── */
+        .nav-label {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.65rem;
+            color: rgba(0,212,255,0.4);
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            padding: 0 4px;
+            margin-bottom: 8px;
+        }
+
+        /* ── BUTTONS ── */
+        .stButton > button {
+            background: transparent;
+            color: #94A3B8;
+            border: 1px solid rgba(0,212,255,0.15);
+            border-radius: 2px;
+            padding: 10px 20px;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 600;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            transition: all 0.2s ease;
+            width: 100%;
+        }
+        .stButton > button:hover {
+            background: rgba(0,212,255,0.08);
+            color: #00D4FF;
+            border-color: rgba(0,212,255,0.4);
+            box-shadow: 0 0 12px rgba(0,212,255,0.1);
+        }
+        .stButton > button:active,
+        .stButton > button:focus {
+            background: rgba(0,212,255,0.12);
+            color: #00D4FF;
+            border-color: #00D4FF;
+        }
+
+        /* ── METRIC CARDS ── */
+        .cyber-metric {
+            background: linear-gradient(135deg, #0D1423, #0A1628);
+            border: 1px solid rgba(0,212,255,0.12);
+            border-radius: 3px;
+            padding: 18px 16px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .cyber-metric::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(0,212,255,0.4), transparent);
+        }
+        .cyber-metric .metric-value {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 1.8rem;
+            color: #00D4FF;
+            display: block;
+        }
+        .cyber-metric .metric-value.danger { color: #FF4B4B; }
+        .cyber-metric .metric-value.safe { color: #00FF88; }
+        .cyber-metric .metric-value.warn { color: #FFB800; }
+        .cyber-metric .metric-label {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.62rem;
+            color: rgba(0,212,255,0.45);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-top: 4px;
+        }
+
+        /* ── INFO BANNER ── */
+        .cyber-banner {
+            background: rgba(0,212,255,0.04);
+            border: 1px solid rgba(0,212,255,0.15);
+            border-left: 3px solid #00D4FF;
+            border-radius: 2px;
+            padding: 12px 18px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.8rem;
+            color: rgba(0,212,255,0.7);
+            letter-spacing: 0.5px;
             margin: 14px 0;
         }
 
-        /* ── Placeholder card ── */
-        .placeholder-card {
-            background-color: #161B22;
-            border: 2px dashed #30363D;
-            border-radius: 14px;
-            padding: 40px 24px;
+        /* ── SUMMARY BOX ── */
+        .cyber-summary {
+            background: linear-gradient(135deg, rgba(0,212,255,0.04), rgba(0,102,255,0.04));
+            border: 1px solid rgba(0,212,255,0.15);
+            border-radius: 3px;
+            padding: 18px 22px;
+            margin-bottom: 20px;
+        }
+        .cyber-summary h3 {
+            font-family: 'Rajdhani', sans-serif;
+            color: #00D4FF;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-top: 0;
+            font-size: 1rem;
+        }
+
+        /* ── PLACEHOLDER ── */
+        .cyber-placeholder {
+            background: rgba(0,212,255,0.02);
+            border: 1px dashed rgba(0,212,255,0.12);
+            border-radius: 3px;
+            padding: 48px 24px;
             text-align: center;
-            color: #484F58;
             min-height: 200px;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
         }
-        .placeholder-card .ph-icon {
-            font-size: 3rem;
-            margin-bottom: 12px;
-        }
-        .placeholder-card .ph-title {
-            font-size: 1.1rem;
+        .cyber-placeholder .ph-icon { font-size: 2.5rem; margin-bottom: 14px; opacity: 0.5; }
+        .cyber-placeholder .ph-title {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1rem;
             font-weight: 600;
-            color: #6E7681;
+            color: rgba(0,212,255,0.4);
+            letter-spacing: 2px;
+            text-transform: uppercase;
             margin-bottom: 8px;
         }
-        .placeholder-card .ph-desc {
-            font-size: 0.85rem;
-            color: #484F58;
+        .cyber-placeholder .ph-desc {
+            font-size: 0.8rem;
+            color: rgba(148,163,184,0.4);
         }
 
-        /* ── Summary box ── */
-        .summary-box {
-            background: linear-gradient(135deg, #1A2744 0%, #1A1F2E 100%);
-            border: 1px solid #FF4B4B44;
-            border-radius: 12px;
-            padding: 20px 24px;
-            margin-bottom: 20px;
+        /* ── BREADCRUMB ── */
+        .cyber-breadcrumb {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.72rem;
+            color: rgba(0,212,255,0.35);
+            letter-spacing: 1px;
+            margin-bottom: 6px;
         }
-        .summary-box h3 {
-            color: #FF4B4B;
-            margin-top: 0;
-        }
+        .cyber-breadcrumb span { color: rgba(0,212,255,0.6); }
 
-        /* ── Streamlit overrides ── */
-        .stButton > button {
-            background-color: #FF4B4B;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            padding: 10px 24px;
-            font-weight: 600;
-            transition: background-color 0.2s ease;
-        }
-        .stButton > button:hover {
-            background-color: #CC3333;
-        }
-        .stButton > button:disabled {
-            background-color: #30363D;
-            color: #484F58;
-        }
+        /* ── STREAMLIT OVERRIDES ── */
         div[data-testid="stMetric"] {
-            background-color: #161B22;
-            border: 1px solid #30363D;
-            border-radius: 10px;
+            background: linear-gradient(135deg, #0D1423, #0A1628);
+            border: 1px solid rgba(0,212,255,0.12);
+            border-radius: 3px;
             padding: 14px 16px;
         }
         div[data-testid="stMetric"] label {
-            color: #8B949E !important;
+            font-family: 'Share Tech Mono', monospace !important;
+            font-size: 0.65rem !important;
+            color: rgba(0,212,255,0.45) !important;
+            letter-spacing: 1.5px !important;
+            text-transform: uppercase !important;
         }
         div[data-testid="stMetric"] [data-testid="stMetricValue"] {
-            color: #FF4B4B;
+            font-family: 'Share Tech Mono', monospace;
+            color: #00D4FF;
         }
         .stTabs [data-baseweb="tab-list"] {
-            background-color: #161B22;
-            border-radius: 10px;
-            padding: 4px;
+            background: rgba(0,212,255,0.03);
+            border-bottom: 1px solid rgba(0,212,255,0.1);
+            border-radius: 0;
+            padding: 0;
+            gap: 0;
         }
         .stTabs [data-baseweb="tab"] {
-            color: #8B949E;
-            border-radius: 8px;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 600;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: rgba(148,163,184,0.6);
+            border-bottom: 2px solid transparent;
+            border-radius: 0;
+            padding: 12px 20px;
         }
         .stTabs [aria-selected="true"] {
-            background-color: #FF4B4B22 !important;
-            color: #FF4B4B !important;
+            background: transparent !important;
+            color: #00D4FF !important;
+            border-bottom: 2px solid #00D4FF !important;
         }
-        .stProgress > div > div {
-            background-color: #FF4B4B;
+        .stProgress > div > div { background-color: #00D4FF; }
+        .stSlider [data-baseweb="slider"] { }
+        div[data-testid="stFileUploader"] {
+            background: rgba(0,212,255,0.02);
+            border: 1px dashed rgba(0,212,255,0.15);
+            border-radius: 3px;
         }
+        .stSelectbox [data-baseweb="select"] > div {
+            background: #0D1423;
+            border-color: rgba(0,212,255,0.2);
+        }
+        .stCheckbox label { color: #94A3B8; }
+        h4 {
+            font-family: 'Rajdhani', sans-serif;
+            color: #CBD5E1;
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+        .stSuccess {
+            background: rgba(0,255,136,0.08) !important;
+            border-color: rgba(0,255,136,0.3) !important;
+        }
+        .stWarning {
+            background: rgba(255,184,0,0.08) !important;
+            border-color: rgba(255,184,0,0.3) !important;
+        }
+        .stError {
+            background: rgba(255,75,75,0.08) !important;
+            border-color: rgba(255,75,75,0.3) !important;
+        }
+        /* scrollbar */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: #070B14; }
+        ::-webkit-scrollbar-thumb { background: rgba(0,212,255,0.2); border-radius: 2px; }
     </style>
     """,
         unsafe_allow_html=True,
@@ -238,264 +354,122 @@ def inject_custom_css():
 
 
 def display_detection_metrics(detections: list, processing_time: float):
-    """
-    Render a styled 3-column metrics row below a detection result image.
-
-    Displays:
-      - Number of accidents detected
-      - Average confidence score (formatted as percentage)
-      - Processing time in milliseconds
-
-    Args:
-        detections (list): List of detection dicts with 'confidence' key.
-        processing_time (float): Time taken for inference in milliseconds.
-    """
     num_detections = len(detections)
     avg_confidence = (
         sum(d["confidence"] for d in detections) / num_detections
-        if num_detections > 0
-        else 0.0
+        if num_detections > 0 else 0.0
     )
-
     col1, col2, col3 = st.columns(3)
-
     with col1:
+        val_class = "safe" if num_detections == 0 else "danger"
         st.markdown(
-            f"""
-        <div class="metric-card {"safe" if num_detections == 0 else ""}">
-            <div class="metric-value">{num_detections}</div>
-            <div class="metric-label">🚨 Accidents Détectés</div>
-        </div>
-        """,
+            f'<div class="cyber-metric"><span class="metric-value {val_class}">{num_detections}</span>'
+            f'<div class="metric-label">// Accidents Détectés</div></div>',
             unsafe_allow_html=True,
         )
-
     with col2:
         st.markdown(
-            f"""
-        <div class="metric-card">
-            <div class="metric-value">{avg_confidence:.0%}</div>
-            <div class="metric-label">📏 Confiance Moyenne</div>
-        </div>
-        """,
+            f'<div class="cyber-metric"><span class="metric-value">{avg_confidence:.0%}</span>'
+            f'<div class="metric-label">// Confiance Moyenne</div></div>',
             unsafe_allow_html=True,
         )
-
     with col3:
         st.markdown(
-            f"""
-        <div class="metric-card safe">
-            <div class="metric-value">{processing_time:.0f} ms</div>
-            <div class="metric-label">⏱️ Temps de Traitement</div>
-        </div>
-        """,
+            f'<div class="cyber-metric"><span class="metric-value safe">{processing_time:.0f}ms</span>'
+            f'<div class="metric-label">// Temps de Traitement</div></div>',
             unsafe_allow_html=True,
         )
-
-    # Small spacer after the metric row
-    st.markdown("<div style='margin-top: 16px;'></div>", unsafe_allow_html=True)
-
-
-# =============================================================================
-# SECTION RENDERERS
-# =============================================================================
+    st.markdown("<div style='margin-top:16px;'></div>", unsafe_allow_html=True)
 
 
 def render_detection_section():
-    """
-    Render the complete 'Détection d'Accidents' section of the application.
-
-    This includes:
-      - Model loading via sidebar file uploader
-      - Two tabs: Image Analysis and Video Analysis
-      - Static fallback mode when no YOLO model is available
-    """
-    st.markdown(
-        '<div class="section-title">🔍 Détection d\'Accidents</div>',
-        unsafe_allow_html=True,
-    )
+    st.markdown('<div class="section-title">// Détection d\'Accidents</div>', unsafe_allow_html=True)
 
     with st.sidebar:
-        st.markdown("---")
-        st.markdown("### 🤖 Modèle YOLOv8")
-
-        model_file = st.file_uploader(
-            "Charger votre modèle (.pt)",
-            type=["pt"],
-            help="Glissez-déposez votre modèle YOLOv8 entraîné au format .pt",
-        )
-
+        st.markdown('<div style="border-top:1px solid rgba(0,212,255,0.1);margin:16px 0;"></div>', unsafe_allow_html=True)
+        st.markdown('<div class="nav-label">// Modèle</div>', unsafe_allow_html=True)
+        model_file = st.file_uploader("Charger votre modèle (.pt)", type=["pt"])
         if model_file is not None:
-            with st.spinner("Chargement du modèle..."):
+            with st.spinner("Chargement..."):
                 model = load_model(model_file.read())
-
             if model is not None:
                 st.session_state["model"] = model
-                st.success("✅ Modèle chargé avec succès !")
-                st.caption(f"Fichier : `{model_file.name}`")
+                st.success("✅ Modèle chargé")
+                st.caption(f"`{model_file.name}`")
             else:
                 st.error("❌ Échec du chargement.")
                 st.session_state["model"] = None
         else:
-            # No model file uploaded — keep whatever is in session state
             if "model" not in st.session_state:
                 st.session_state["model"] = None
-
-        # Display current model status
         if st.session_state.get("model") is not None:
-            st.markdown(
-                '<span style="color:#00C853;">● Modèle actif</span>',
-                unsafe_allow_html=True,
-            )
+            st.markdown('<div style="font-family:\'Share Tech Mono\',monospace;font-size:0.72rem;color:#00FF88;letter-spacing:1px;">● MODÈLE ACTIF</div>', unsafe_allow_html=True)
         else:
-            st.markdown(
-                '<span style="color:#FF4B4B;">● Mode démonstration</span>',
-                unsafe_allow_html=True,
-            )
+            st.markdown('<div style="font-family:\'Share Tech Mono\',monospace;font-size:0.72rem;color:rgba(255,75,75,0.8);letter-spacing:1px;">● MODE DÉMONSTRATION</div>', unsafe_allow_html=True)
 
-    # ── NO MODEL WARNING ──────────────────────────────────────────────────────
     if st.session_state.get("model") is None:
-        st.warning(
-            "⚠️ Veuillez charger votre modèle YOLOv8 (.pt) dans la barre latérale. "
-            "En attendant, le **mode démonstration** est actif avec une détection statique."
-        )
+        st.warning("⚠️ Chargez votre modèle YOLOv8 (.pt) dans la barre latérale.")
 
-    # ── TAB LAYOUT ────────────────────────────────────────────────────────────
-    tab_image, tab_video = st.tabs(["🖼️ Analyse d'Image", "🎬 Analyse de Vidéo"])
+    tab_image, tab_video = st.tabs(["  Image  ", "  Vidéo  "])
 
-    # ─────────────────────────────────────────────────────────────────────────
-    # TAB 1 : IMAGE ANALYSIS
-    # ─────────────────────────────────────────────────────────────────────────
     with tab_image:
-        st.markdown("#### 📂 Charger une image à analyser")
-
-        uploaded_image = st.file_uploader(
-            "Formats acceptés : JPG, JPEG, PNG",
-            type=["jpg", "jpeg", "png"],
-            key="image_uploader",
-        )
-
+        st.markdown("#### 📂 Charger une image")
+        uploaded_image = st.file_uploader("JPG, JPEG, PNG", type=["jpg", "jpeg", "png"], key="image_uploader")
         if uploaded_image is not None:
             try:
-                # Load image with PIL and convert to numpy array (RGB)
                 pil_image = Image.open(uploaded_image).convert("RGB")
                 image_np = np.array(pil_image)
-
-                st.markdown("---")
+                st.markdown('<div style="border-top:1px solid rgba(0,212,255,0.1);margin:16px 0;"></div>', unsafe_allow_html=True)
                 col_orig, col_result = st.columns(2, gap="large")
-
-                # LEFT — Original image
                 with col_orig:
-                    st.markdown(
-                        "**🖼️ Image Originale**", help="Image uploadée sans traitement"
-                    )
+                    st.markdown("**// IMAGE ORIGINALE**")
                     st.image(image_np, use_container_width=True)
-
-                # RIGHT — Detection result
                 with col_result:
-                    st.markdown("**🔍 Résultat de Détection**")
-                    with st.spinner("Analyse en cours..."):
-                        result_np, detections, proc_time = detect_on_image(
-                            image_np, st.session_state.get("model")
-                        )
+                    st.markdown("**// RÉSULTAT**")
+                    with st.spinner("Analyse..."):
+                        result_np, detections, proc_time = detect_on_image(image_np, st.session_state.get("model"))
                     st.image(result_np, use_container_width=True)
-
-                # Metrics row below both images
-                st.markdown("#### 📊 Métriques de Détection")
+                st.markdown("#### // Métriques")
                 display_detection_metrics(detections, proc_time)
-
-                # List detected classes if any
                 if detections:
-                    st.markdown("#### 🏷️ Détections")
+                    st.markdown("#### // Détections")
                     for i, det in enumerate(detections, 1):
-                        st.markdown(
-                            f"**Objet {i}** — Classe : `{det['class']}` "
-                            f"| Confiance : `{det['confidence']:.2%}`"
-                        )
-
+                        st.markdown(f"`[{i:02d}]` Classe : **{det['class']}** — Confiance : `{det['confidence']:.2%}`")
             except Exception as e:
-                st.error(f"❌ Format d'image non supporté ou fichier corrompu : {e}")
-
+                st.error(f"❌ Erreur : {e}")
         else:
-            # Placeholder before upload
             st.markdown(
-                """
-            <div class="placeholder-card">
-                <div class="ph-icon">🖼️</div>
-                <div class="ph-title">Aucune image chargée</div>
-                <div class="ph-desc">
-                    Uploadez une image (JPG / JPEG / PNG) pour lancer la détection.
-                </div>
-            </div>
-            """,
+                '<div class="cyber-placeholder"><div class="ph-icon">🖼️</div>'
+                '<div class="ph-title">Aucune image chargée</div>'
+                '<div class="ph-desc">Uploadez une image JPG / JPEG / PNG</div></div>',
                 unsafe_allow_html=True,
             )
 
-    # ─────────────────────────────────────────────────────────────────────────
-    # TAB 2 : VIDEO ANALYSIS
-    # ─────────────────────────────────────────────────────────────────────────
     with tab_video:
-        st.markdown("#### 📂 Charger une vidéo à analyser")
-
-        uploaded_video = st.file_uploader(
-            "Formats acceptés : MP4, AVI, MOV",
-            type=["mp4", "avi", "mov"],
-            key="video_uploader",
-        )
-
-        # Frame extraction interval slider
-        frame_interval = st.slider(
-            "Intervalle d'extraction (frames)",
-            min_value=5,
-            max_value=30,
-            value=10,
-            step=1,
-            help="Extraire 1 frame toutes les N frames. "
-            "Valeur plus élevée = traitement plus rapide.",
-        )
-
+        st.markdown("#### 📂 Charger une vidéo")
+        uploaded_video = st.file_uploader("MP4, AVI, MOV", type=["mp4", "avi", "mov"], key="video_uploader")
+        frame_interval = st.slider("Intervalle d'extraction (frames)", min_value=5, max_value=30, value=10, step=1)
         if uploaded_video is not None:
-            st.markdown("---")
-            launch_btn = st.button(
-                "🎬 Lancer l'Analyse Vidéo", use_container_width=True
-            )
-
+            st.markdown('<div style="border-top:1px solid rgba(0,212,255,0.1);margin:16px 0;"></div>', unsafe_allow_html=True)
+            launch_btn = st.button("▶  LANCER L'ANALYSE VIDÉO", use_container_width=True)
             if launch_btn:
                 video_bytes = uploaded_video.read()
-
-                # ── STEP 1 : FRAME EXTRACTION ─────────────────────────────
-                st.markdown("#### ⚙️ Étape 1 — Extraction des frames")
-                with st.spinner("Extraction en cours..."):
+                st.markdown("#### // Étape 1 — Extraction")
+                with st.spinner("Extraction des frames..."):
                     frames = extract_frames(video_bytes, frame_interval)
-
                 if not frames:
-                    st.error("❌ Aucune frame extraite. Vérifiez le fichier vidéo.")
+                    st.error("❌ Aucune frame extraite.")
                     return
-
-                st.success(f"✅ **{len(frames)} frames** extraites avec succès !")
-
-                # ── STEP 2 : DETECTION ON EACH FRAME ─────────────────────
-                st.markdown("#### ⚙️ Étape 2 — Détection sur chaque frame")
-
+                st.success(f"✅ {len(frames)} frames extraites")
+                st.markdown("#### // Étape 2 — Détection")
                 detect_progress = st.progress(0.0)
                 detect_status = st.empty()
-
-                processed_frames = []
-                all_confidences = []
-                best_confidence = 0.0
-                best_frame_index = None
-                frames_with_accident = 0
-
+                processed_frames, all_confidences = [], []
+                best_confidence, best_frame_index, frames_with_accident = 0.0, None, 0
                 for i, (frame_idx, frame_np) in enumerate(frames):
-                    detect_status.text(
-                        f"Analyse en cours... Frame {i + 1}/{len(frames)}"
-                    )
-
-                    result_np, detections, proc_time = detect_on_image(
-                        frame_np, st.session_state.get("model")
-                    )
-
-                    has_accident = len(detections) > 0
+                    detect_status.text(f"Frame {i + 1}/{len(frames)}")
+                    result_np, detections, proc_time = detect_on_image(frame_np, st.session_state.get("model"))
+                    has_accident = any(d['class'].lower() == 'accident' for d in detections)
                     if has_accident:
                         frames_with_accident += 1
                         for det in detections:
@@ -503,234 +477,308 @@ def render_detection_section():
                             if det["confidence"] > best_confidence:
                                 best_confidence = det["confidence"]
                                 best_frame_index = frame_idx
-
-                    processed_frames.append(
-                        {
-                            "frame_idx": frame_idx,
-                            "image": result_np,
-                            "detections": detections,
-                            "has_accident": has_accident,
-                            "proc_time": proc_time,
-                        }
-                    )
-
+                    processed_frames.append({"frame_idx": frame_idx, "image": result_np, "detections": detections, "has_accident": has_accident, "proc_time": proc_time})
                     detect_progress.progress((i + 1) / len(frames))
-
                 detect_status.empty()
                 detect_progress.progress(1.0)
-
-                # ── STEP 3 : RESULTS DISPLAY ──────────────────────────────
-                st.markdown("#### 📊 Étape 3 — Résultats de l'analyse")
-
-                # Summary card
+                st.markdown("#### // Résultats")
                 total_analyzed = len(processed_frames)
-                detection_rate = (
-                    frames_with_accident / total_analyzed * 100
-                    if total_analyzed > 0
-                    else 0
-                )
-                avg_conf_overall = (
-                    sum(all_confidences) / len(all_confidences)
-                    if all_confidences
-                    else 0.0
-                )
-
+                detection_rate = frames_with_accident / total_analyzed * 100 if total_analyzed > 0 else 0
                 st.markdown(
-                    f"""
-                <div class="summary-box">
-                    <h3>🏆 Résumé de l'Analyse Vidéo</h3>
-                </div>
-                """,
+                    '<div class="cyber-summary"><h3>// Résumé Analyse Vidéo</h3></div>',
                     unsafe_allow_html=True,
                 )
-
                 sum_c1, sum_c2, sum_c3, sum_c4 = st.columns(4)
-
-                with sum_c1:
-                    st.metric("🎬 Frames Analysées", total_analyzed)
-                with sum_c2:
-                    st.metric("🚨 Frames avec Accident", frames_with_accident)
-                with sum_c3:
-                    st.metric("📈 Taux de Détection", f"{detection_rate:.1f}%")
-                with sum_c4:
-                    st.metric(
-                        "⭐ Meilleure Confiance",
-                        f"{best_confidence:.0%}"
-                        if best_frame_index is not None
-                        else "—",
-                        help=(
-                            f"Frame #{best_frame_index}"
-                            if best_frame_index is not None
-                            else ""
-                        ),
-                    )
-
+                with sum_c1: st.metric("Frames Analysées", total_analyzed)
+                with sum_c2: st.metric("Frames Accident", frames_with_accident)
+                with sum_c3: st.metric("Taux Détection", f"{detection_rate:.1f}%")
+                with sum_c4: st.metric("Meilleure Conf.", f"{best_confidence:.0%}" if best_frame_index is not None else "—")
                 if best_frame_index is not None:
-                    st.info(
-                        f"📍 Détection maximale à la frame **#{best_frame_index}** "
-                        f"avec une confiance de **{best_confidence:.0%}**"
-                    )
-
-                # Frame grid — 3 per row
-                st.markdown("#### 🗂️ Galerie des Frames Analysées")
-                st.caption(
-                    f"Affichage de {len(processed_frames)} frames "
-                    f"({'Modèle actif' if st.session_state.get('model') else 'Mode démo'})"
-                )
-
+                    st.info(f"📍 Frame **#{best_frame_index}** — confiance max **{best_confidence:.0%}**")
+                st.markdown("#### // Frames avec Accidents")
                 cols_per_row = 3
-                for row_start in range(0, len(processed_frames), cols_per_row):
-                    row_frames = processed_frames[row_start : row_start + cols_per_row]
-                    grid_cols = st.columns(cols_per_row, gap="small")
-
-                    for col_obj, frame_data in zip(grid_cols, row_frames):
-                        with col_obj:
-                            st.image(frame_data["image"], use_container_width=True)
-                            if frame_data["has_accident"]:
-                                best_det_conf = max(
-                                    d["confidence"] for d in frame_data["detections"]
-                                )
+                accident_frames = [f for f in processed_frames if f['has_accident']]
+                if not accident_frames:
+                    st.warning("⚠️ Aucun accident détecté.")
+                else:
+                    st.caption(f"{len(accident_frames)} / {len(processed_frames)} frames")
+                    for row_start in range(0, len(accident_frames), cols_per_row):
+                        row_frames = accident_frames[row_start: row_start + cols_per_row]
+                        grid_cols = st.columns(cols_per_row, gap="small")
+                        for col_obj, frame_data in zip(grid_cols, row_frames):
+                            with col_obj:
+                                st.image(frame_data["image"], use_container_width=True)
+                                best_det_conf = max(d["confidence"] for d in frame_data["detections"])
                                 st.markdown(
-                                    f"<div style='text-align:center;font-size:0.78rem;'>"
-                                    f"<b>Frame #{frame_data['frame_idx']}</b><br>"
-                                    f"<span style='color:#FF4B4B;'>🚨 Accident — "
-                                    f"{best_det_conf:.0%}</span></div>",
+                                    f"<div style='text-align:center;font-family:Share Tech Mono,monospace;font-size:0.72rem;'>"
+                                    f"<span style='color:rgba(0,212,255,0.5);'>FRAME #{frame_data['frame_idx']}</span><br>"
+                                    f"<span style='color:#FF4B4B;'>🚨 {best_det_conf:.0%}</span></div>",
                                     unsafe_allow_html=True,
                                 )
-                            else:
-                                st.markdown(
-                                    f"<div style='text-align:center;font-size:0.78rem;'>"
-                                    f"<b>Frame #{frame_data['frame_idx']}</b><br>"
-                                    f"<span style='color:#00C853;'>✅ Aucun accident</span>"
-                                    f"</div>",
-                                    unsafe_allow_html=True,
-                                )
-                            st.markdown(
-                                "<div style='margin-bottom:12px;'></div>",
-                                unsafe_allow_html=True,
-                            )
-
+                                st.markdown("<div style='margin-bottom:10px;'></div>", unsafe_allow_html=True)
         else:
-            # Placeholder before upload
             st.markdown(
-                """
-            <div class="placeholder-card">
-                <div class="ph-icon">🎬</div>
-                <div class="ph-title">Aucune vidéo chargée</div>
-                <div class="ph-desc">
-                    Uploadez une vidéo (MP4 / AVI / MOV) pour lancer l'analyse frame par frame.
-                </div>
-            </div>
-            """,
+                '<div class="cyber-placeholder"><div class="ph-icon">🎬</div>'
+                '<div class="ph-title">Aucune vidéo chargée</div>'
+                '<div class="ph-desc">Uploadez une vidéo MP4 / AVI / MOV</div></div>',
                 unsafe_allow_html=True,
             )
 
 
 def render_prediction_section():
-    """
-    Render the 'Prédiction d'Accidents' section placeholder.
+    st.markdown('<div class="section-title">// Prédiction de Risque</div>', unsafe_allow_html=True)
 
-    This section is planned for a future ML-based prediction module
-    that will estimate accident probability from environmental,
-    meteorological, and traffic parameters.
-    """
+    @st.cache_resource
+    def load_prediction_model():
+        import joblib
+        return joblib.load("models/model_xgboost.pkl")
+
+    try:
+        pred_model = load_prediction_model()
+    except Exception as e:
+        st.error(f"❌ Impossible de charger le modèle : {e}")
+        return
+
     st.markdown(
-        '<div class="section-title">📊 Module de Prédiction d\'Accidents</div>',
+        '<div class="cyber-banner">[ INPUT ] — Renseignez les conditions pour estimer le risque d\'accident grave</div>',
         unsafe_allow_html=True,
     )
 
+    col1, col2, col3 = st.columns(3)
 
-def main():
-    """
-    Main function — entry point for the Streamlit application.
+    with col1:
+        st.markdown('<div style="font-family:\'Share Tech Mono\',monospace;font-size:0.7rem;color:rgba(0,212,255,0.5);letter-spacing:2px;margin-bottom:12px;">// TEMPOREL</div>', unsafe_allow_html=True)
+        hour = st.slider("Heure", 0, 23, 8)
+        day_of_week = st.selectbox("Jour", options=[0,1,2,3,4,5,6],
+            format_func=lambda x: ["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"][x])
+        month = st.selectbox("Mois", options=list(range(1,13)),
+            format_func=lambda x: ["Jan","Fév","Mar","Avr","Mai","Jun","Jul","Aoû","Sep","Oct","Nov","Déc"][x-1])
+        is_weekend = 1 if day_of_week >= 5 else 0
 
-    Handles:
-      - CSS injection
-      - Page header rendering
-      - Sidebar navigation setup with session_state
-      - Routing to the correct section renderer
-    """
-    # Inject global styles
-    inject_custom_css()
+    with col2:
+        st.markdown('<div style="font-family:\'Share Tech Mono\',monospace;font-size:0.7rem;color:rgba(0,212,255,0.5);letter-spacing:2px;margin-bottom:12px;">// MÉTÉO</div>', unsafe_allow_html=True)
+        temperature = st.slider("Température (°F)", -20, 120, 65)
+        humidity = st.slider("Humidité (%)", 0, 100, 60)
+        visibility = st.slider("Visibilité (mi)", 0.0, 10.0, 9.0, step=0.1)
+        wind_speed = st.slider("Vent (mph)", 0.0, 60.0, 8.0, step=0.5)
+        is_rain = st.checkbox("🌧️ Pluie")
+        is_snow = st.checkbox("❄️ Neige")
+        is_fog = st.checkbox("🌫️ Brouillard")
 
-    # Initialize navigation state
-    if "active_section" not in st.session_state:
-        st.session_state["active_section"] = "detection"
+    with col3:
+        st.markdown('<div style="font-family:\'Share Tech Mono\',monospace;font-size:0.7rem;color:rgba(0,212,255,0.5);letter-spacing:2px;margin-bottom:12px;">// ROUTE</div>', unsafe_allow_html=True)
+        sunrise_sunset = st.selectbox("Luminosité", ["Jour", "Nuit"])
+        junction = st.checkbox("🔀 Intersection")
+        traffic_signal = st.checkbox("🚦 Feu")
+        crossing = st.checkbox("🚶 Passage piéton")
+        give_way = st.checkbox("⚠️ Cédez le passage")
+        station = st.checkbox("🚌 Station")
+        stop = st.checkbox("🛑 Stop")
 
-    # Initialize model state
-    if "model" not in st.session_state:
-        st.session_state["model"] = None
+    st.markdown('<div style="border-top:1px solid rgba(0,212,255,0.1);margin:20px 0;"></div>', unsafe_allow_html=True)
+    predict_btn = st.button("▶  ANALYSER LE RISQUE", use_container_width=True)
 
-    # ── SIDEBAR NAVIGATION ────────────────────────────────────────────────────
-    with st.sidebar:
+    if predict_btn:
+        input_data = pd.DataFrame([{
+            'hour': hour, 'day_of_week': day_of_week, 'month': month, 'is_weekend': is_weekend,
+            'Temperature(F)': temperature, 'Humidity(%)': humidity,
+            'Visibility(mi)': visibility, 'Wind_Speed(mph)': wind_speed,
+            'Junction': int(junction), 'Traffic_Signal': int(traffic_signal),
+            'Crossing': int(crossing), 'Sunrise_Sunset': 1 if sunrise_sunset == "Nuit" else 0,
+            'Give_Way': int(give_way), 'Station': int(station), 'Stop': int(stop),
+            'is_rain': int(is_rain), 'is_snow': int(is_snow), 'is_fog': int(is_fog),
+        }])
+        proba = pred_model.predict_proba(input_data)[0][1]
+        pct = proba * 100
+
+        if pct >= 40:
+            color, glow, status, bar_color = "#FF4B4B", "rgba(255,75,75,0.3)", "RISQUE ÉLEVÉ", "#FF4B4B"
+        elif pct >= 20:
+            color, glow, status, bar_color = "#FFB800", "rgba(255,184,0,0.3)", "RISQUE MODÉRÉ", "#FFB800"
+        else:
+            color, glow, status, bar_color = "#00FF88", "rgba(0,255,136,0.3)", "RISQUE FAIBLE", "#00FF88"
+
         st.markdown(
-            """
-        <div style="text-align:center; padding: 12px 0 20px 0;">
-            <div style="font-size:2.2rem;">🚨</div>
-            <div style="font-size:1rem; font-weight:700; color:#FF4B4B;">
-                Road Accident AI
+            f"""
+            <div style="
+                background: linear-gradient(135deg, #0D1423, #0A1628);
+                border: 1px solid {color}44;
+                border-top: 2px solid {color};
+                border-radius: 3px;
+                padding: 40px 32px;
+                text-align: center;
+                margin-top: 20px;
+                position: relative;
+                overflow: hidden;
+            ">
+                <div style="
+                    font-family: 'Share Tech Mono', monospace;
+                    font-size: 0.7rem;
+                    color: rgba(0,212,255,0.4);
+                    letter-spacing: 3px;
+                    text-transform: uppercase;
+                    margin-bottom: 16px;
+                ">[ ANALYSE TERMINÉE ]</div>
+                <div style="
+                    font-family: 'Share Tech Mono', monospace;
+                    font-size: 4.5rem;
+                    font-weight: 700;
+                    color: {color};
+                    text-shadow: 0 0 30px {glow};
+                    line-height: 1;
+                    margin-bottom: 8px;
+                ">{pct:.1f}%</div>
+                <div style="
+                    font-family: 'Rajdhani', sans-serif;
+                    font-size: 1.1rem;
+                    font-weight: 700;
+                    color: {color};
+                    letter-spacing: 4px;
+                    text-transform: uppercase;
+                    margin-bottom: 20px;
+                ">{status}</div>
+                <div style="
+                    background: rgba(0,0,0,0.3);
+                    border-radius: 2px;
+                    height: 4px;
+                    width: 60%;
+                    margin: 0 auto 16px;
+                    overflow: hidden;
+                ">
+                    <div style="
+                        background: {bar_color};
+                        height: 100%;
+                        width: {min(pct, 100):.0f}%;
+                        box-shadow: 0 0 8px {glow};
+                    "></div>
+                </div>
+                <div style="
+                    font-family: 'Share Tech Mono', monospace;
+                    font-size: 0.72rem;
+                    color: rgba(148,163,184,0.5);
+                    letter-spacing: 1px;
+                ">Probabilité d'accident grave — XGBoost v1.0</div>
             </div>
-            <div style="font-size:0.72rem; color:#484F58;">
-                Système de Détection & Prédiction
-            </div>
-        </div>
-        """,
+            """,
             unsafe_allow_html=True,
         )
 
-        st.markdown("### 📁 Navigation")
 
-        # Detection button
-        det_style = (
-            "background:#FF4B4B22; border-left:3px solid #FF4B4B;"
-            if st.session_state["active_section"] == "detection"
-            else ""
+def render_map_section():
+    st.markdown('<div class="section-title">// Carte de Risque</div>', unsafe_allow_html=True)
+
+    import folium
+    from folium.plugins import HeatMap
+    from streamlit_folium import st_folium
+    import joblib
+
+    @st.cache_resource
+    def load_map_model():
+        return joblib.load("models/model_xgboost.pkl")
+
+    @st.cache_data
+    def load_grid_data():
+        df = pd.read_csv("data/US_Accidents_March23.csv")
+        df = df.sample(n=500000, random_state=42).reset_index(drop=True)
+        df['Start_Time'] = pd.to_datetime(df['Start_Time'], format='mixed', errors='coerce')
+        df['hour'] = df['Start_Time'].dt.hour
+        df['day_of_week'] = df['Start_Time'].dt.dayofweek
+        df['month'] = df['Start_Time'].dt.month
+        df['is_weekend'] = df['day_of_week'].isin([5, 6]).astype(int)
+        df['lat_grid'] = df['Start_Lat'].round(1)
+        df['lng_grid'] = df['Start_Lng'].round(1)
+        df['is_rain'] = df['Weather_Condition'].str.contains('Rain', na=False).astype(int)
+        df['is_snow'] = df['Weather_Condition'].str.contains('Snow', na=False).astype(int)
+        df['is_fog'] = df['Weather_Condition'].str.contains('Fog|Haze', na=False).astype(int)
+        df['Sunrise_Sunset_enc'] = (df['Sunrise_Sunset'] == 'Night').astype(int)
+        return df
+
+    @st.cache_data
+    def compute_risk_grid(_model):
+        df = load_grid_data()
+        features = ['lat_grid', 'lng_grid', 'hour', 'day_of_week', 'month', 'is_weekend',
+                    'Temperature(F)', 'Humidity(%)', 'Visibility(mi)', 'Wind_Speed(mph)',
+                    'Junction', 'Traffic_Signal', 'Crossing', 'Sunrise_Sunset_enc',
+                    'Give_Way', 'Station', 'Stop', 'is_rain', 'is_snow', 'is_fog']
+        grid = df[features].dropna()
+        grid_agg = grid.groupby(['lat_grid', 'lng_grid']).mean().reset_index()
+        X = grid_agg.drop(['lat_grid', 'lng_grid'], axis=1)
+        X.columns = ['hour', 'day_of_week', 'month', 'is_weekend',
+                     'Temperature(F)', 'Humidity(%)', 'Visibility(mi)', 'Wind_Speed(mph)',
+                     'Junction', 'Traffic_Signal', 'Crossing', 'Sunrise_Sunset',
+                     'Give_Way', 'Station', 'Stop', 'is_rain', 'is_snow', 'is_fog']
+        grid_agg['risk_score'] = _model.predict_proba(X)[:, 1]
+        return grid_agg
+
+    st.markdown(
+        '<div class="cyber-banner">[ DATA ] — Densité de risque basée sur 1M d\'accidents réels — US Accidents Database 2016–2023</div>',
+        unsafe_allow_html=True,
+    )
+
+    with st.spinner("Calcul du risque géographique..."):
+        map_model = load_map_model()
+        grid_agg = compute_risk_grid(map_model)
+
+    m = folium.Map(location=[37.5, -96.0], zoom_start=5, tiles='CartoDB dark_matter')
+    heat_data = grid_agg[['lat_grid', 'lng_grid', 'risk_score']].values.tolist()
+    HeatMap(heat_data, min_opacity=0.3, radius=15, blur=20).add_to(m)
+    st_folium(m, width=None, height=560)
+
+
+def main():
+    inject_custom_css()
+
+    if "active_section" not in st.session_state:
+        st.session_state["active_section"] = "detection"
+    if "model" not in st.session_state:
+        st.session_state["model"] = None
+
+    with st.sidebar:
+        st.markdown(
+            """
+            <div class="nav-logo">
+                <span class="logo-icon">🚨</span>
+                <div class="logo-title">Road Accident AI</div>
+                <div class="logo-sub">Detection & Prediction System</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
-        if st.button(
-            "🔍 Détection d'Accidents", use_container_width=True, key="nav_detection"
-        ):
+        st.markdown('<div class="nav-label">// Navigation</div>', unsafe_allow_html=True)
+
+        if st.button("  Détection d'Accidents", use_container_width=True, key="nav_detection"):
             st.session_state["active_section"] = "detection"
             st.rerun()
-
-        # Prediction button
-        if st.button(
-            "📊 Prédiction d'Accidents", use_container_width=True, key="nav_prediction"
-        ):
+        if st.button("  Prédiction de Risque", use_container_width=True, key="nav_prediction"):
             st.session_state["active_section"] = "prediction"
             st.rerun()
+        if st.button("  Carte de Risque", use_container_width=True, key="nav_map"):
+            st.session_state["active_section"] = "map"
+            st.rerun()
 
-    # ── GLOBAL HEADER ─────────────────────────────────────────────────────────
-    st.markdown(
-        """
-    <div class="main-header">
-        <h1>🚨 Road Accident AI System</h1>
-        <p>
-            Système intelligent de détection et de prédiction d'accidents routiers
-            alimenté par l'Intelligence Artificielle et la Vision par Ordinateur
-        </p>
-    </div>
-    """,
-        unsafe_allow_html=True,
-    )
-
-    # ── BREADCRUMB / ACTIVE INDICATOR ─────────────────────────────────────────
     active = st.session_state["active_section"]
     section_label = (
-        "🔍 Détection d'Accidents"
-        if active == "detection"
-        else "📊 Prédiction d'Accidents"
+        "Détection d'Accidents" if active == "detection"
+        else "Prédiction de Risque" if active == "prediction"
+        else "Carte de Risque"
     )
+
     st.markdown(
-        f"<p style='color:#484F58; font-size:0.82rem; margin-bottom:4px;'>"
-        f"Accueil › <b style='color:#8B949E;'>{section_label}</b></p>",
+        f"""
+        <div class="cyber-header">
+            <h1>Road <span class="accent">Accident</span> AI</h1>
+            <p>[ {section_label.upper()} ] — Système de détection et prédiction par deep learning</p>
+        </div>
+        """,
         unsafe_allow_html=True,
     )
 
-    # ── SECTION ROUTING ───────────────────────────────────────────────────────
     if active == "detection":
         render_detection_section()
     elif active == "prediction":
         render_prediction_section()
+    elif active == "map":
+        render_map_section()
 
 
 if __name__ == "__main__":

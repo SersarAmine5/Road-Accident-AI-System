@@ -1,48 +1,107 @@
-# Accident Detection
+# 🚨 Road Accident AI System
 
-To setup the python environment with the right libraries, execute in the project directory the following commands:
+Système intelligent de **détection** et **prédiction** d'accidents routiers par Deep Learning.
+
+Développé dans le cadre d'un mémoire de Master en Aide à la Décision et Systèmes Intelligents — Université d'Oran 1, 2026.
+
+---
+
+## Fonctionnalités
+
+| Module | Description |
+|---|---|
+| 🔍 Détection | YOLOv8s — détection d'accidents sur images et vidéos en temps réel |
+| 📊 Prédiction | XGBoost — estimation du risque d'accident grave (%) selon les conditions |
+| 🗺️ Carte de risque | Heatmap géographique basée sur 1M d'accidents réels (US Accidents DB) |
+
+---
+
+## Installation
 
 ```bash
-python -m venv .venv
-```
-
-```bash
-# macos:
-source .venv/bin/activate
-# windows:
-.\.venv\Scripts\activate
-```
-
-If the above command didn't work due to a **PowerShell execution policy error**, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser` in an administrator powershell and try again after restarting your terminal.
-
-```bash
+git clone https://github.com/votre-repo/road-accident-ai.git
+cd road-accident-ai
+python -m venv venv
+venv\Scripts\activate        # Windows
 pip install -r requirements.txt
 ```
 
-## Download the Data
+---
 
-```bash
-# TODO: to be completed.
+## Données requises
+
+### 1. US Accidents Dataset
+Télécharger depuis Kaggle :
+👉 https://www.kaggle.com/datasets/sobhanmoosavi/us-accidents
+
+Placer le fichier dans :
+```
+data/US_Accidents_March23.csv
 ```
 
-## Train a Model
-
-```bash
-python src/train.py
+### 2. Modèle XGBoost
+Téléchargez le modèle pré-entraîné et placer dans :
+```
+models/model_xgboost.pkl
 ```
 
-## Use the Pre-Trained Model
-
-TODO: instructions on how to go to the YOLO directory, and get the best.pt model weights.
-
-TODO: instructuons on how to move the weights to the models directory in order to be able to use them later in the streamlit thing.
-
-TODO: instructions on how to run the streamlit project and use the pre-trained model there. Tell that we have example images and videos inside of the examples folder.
-
-```bash
-# TODO: to be completed.
+### 3. Modèle YOLOv8
+Téléchargez`best.pt` depuis repo GitHub et placer dans :
+```
+models/best.pt
 ```
 
+---
+
+## Lancement
+
 ```bash
-python -m streamlit run src/app.py
+streamlit run app.py
 ```
+
+L'interface est accessible sur `http://localhost:8501`
+
+---
+
+## Structure du projet
+
+```
+# Road-accident-prediction-and-detection-system-YOLO
+
+## 📁 Structure du projet
+
+```bash
+Road-accident-prediction-and-detection-system-YOLO/
+│
+├── examples/              # Exemples d'utilisation
+│
+├── models/                # Modèles YOLO et Xgboost
+│
+├── runs/                  # Résultats d'entraînement
+│
+├── src/                   
+│   ├── app.py             # Application principale
+│   ├── model.py           # Gestion du modèle YOLO
+│   └── train.py           # Entraînement du modèle
+│
+├── Prediction/            # Résultats des prédictions
+│
+├── README.md              # Documentation
+│
+└── requirements.txt       # Dépendances Python
+
+## Modèles
+
+| Modèle | Architecture | Dataset | Métriques |
+|---|---|---|---|
+| Détection | YOLOv8s | 4 250 images (Roboflow) | Precision 79% — Recall: 60.2% |
+| Prédiction | XGBoost | 918 431 accidents (US) | AUC-ROC: 0.72 |
+
+---
+
+## Auteurs
+
+- **Sersar Mohammed El Amine**
+- **Mesbah Abdelmajid Ryad**
+
+Université d'Oran 1 — Faculté des Sciences Exactes et Appliquées — 2026

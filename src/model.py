@@ -131,9 +131,7 @@ def detect_on_image(image_np: np.ndarray, model) -> tuple[np.ndarray, list, floa
 
     try:
         if model is not None and YOLO_AVAILABLE:
-            results = model.predict(
-                image_np, verbose=False
-            )  # use .predict() not __call__
+            results = model.predict(image_np, verbose=False, conf=0.15) # use .predict() not __call__
 
             # results[0].plot() returns BGR — convert to RGB
             plotted = results[0].plot()
