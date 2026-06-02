@@ -131,7 +131,7 @@ def detect_on_image(image_np: np.ndarray, model) -> tuple[np.ndarray, list, floa
 
     try:
         if model is not None and YOLO_AVAILABLE:
-            results = model.predict(image_np, verbose=False, conf=0.15) # use .predict() not __call__
+            results = model.predict(image_np, verbose=False, conf=0.5) # use .predict() not __call__
 
             # results[0].plot() returns BGR — convert to RGB
             plotted = results[0].plot()
@@ -146,10 +146,11 @@ def detect_on_image(image_np: np.ndarray, model) -> tuple[np.ndarray, list, floa
                     else {i: n for i, n in enumerate(model.names)}
                 )
                 for box in boxes:
-                    conf = float(box.conf[0])
-                    cls = int(box.cls[0])
-                    label = names.get(cls, f"Classe {cls}")
-                    detections.append({"confidence": conf, "class": label})
+                 conf = float(box.conf[0])
+                 cls = int(box.cls[0])
+                 label = names.get(cls, f"Classe {cls}")
+                 if label.lower() == "accident" and conf >= 0.50:
+                     detections.append({"confidence": conf, "class": label})
         else:
             bgr = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
             bgr_drawn = draw_static_detection(bgr)

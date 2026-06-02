@@ -678,7 +678,7 @@ def render_map_section():
 
     @st.cache_data
     def load_grid_data():
-        df = pd.read_csv("data/US_Accidents_March23.csv")
+        df = pd.read_csv("data/US_Accidents_March23.csv",nrows=500000)
         df = df.sample(n=500000, random_state=42).reset_index(drop=True)
         df['Start_Time'] = pd.to_datetime(df['Start_Time'], format='mixed', errors='coerce')
         df['hour'] = df['Start_Time'].dt.hour
